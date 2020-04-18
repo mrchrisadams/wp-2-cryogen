@@ -2,7 +2,8 @@
   (:require [clojure.java.io :as io]
             [clojure.xml :as xml]
             [clojure.zip :as zip]
-            [clojure.data.zip.xml :as zip-xml]))
+            [clojure.data.zip.xml :as zip-xml]
+            [selmer.parser :as sp]))
 
 (def blog-file "./wp-export.xml")
 
@@ -25,14 +26,18 @@
     :channel
     :item [(keyword "wp:post_type") "post"]))
 
+(defn is-markdown-status
+  [post]
+  ; TODO
+  ; :markdown (zip-xml/xml1-> post (keyword "wp:postmeta") (keyword "wp:meta_key")
+  ; <wp:meta_key>_wpcom_is_markdown</wp:meta_key>
+  )
+
 (defn post->map
   "Return a map for the corresponding post we pass in."
   [post]
   {:title (zip-xml/xml1-> post :title zip-xml/text)
    :content (zip-xml/xml1-> post (keyword "content:encoded") zip-xml/text)})
-
-  ; :markdown (zip-xml/xml1-> post (keyword "wp:postmeta") (keyword "wp:meta_key")
-  ; <wp:meta_key>_wpcom_is_markdown</wp:meta_key>
 
 (let [loaded-posts (posts (load-xml-export blog-file))
   [post & rest] loaded-posts]
@@ -45,5 +50,4 @@
     :date    (zip-xml/xml1-> post (keyword "wp:post_date") zip-xml/text)
 
   })
-
 
