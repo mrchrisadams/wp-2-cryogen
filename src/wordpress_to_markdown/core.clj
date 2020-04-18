@@ -30,3 +30,20 @@
   [post]
   {:title (zip-xml/xml1-> post :title zip-xml/text)
    :content (zip-xml/xml1-> post (keyword "content:encoded") zip-xml/text)})
+
+  ; :markdown (zip-xml/xml1-> post (keyword "wp:postmeta") (keyword "wp:meta_key")
+  ; <wp:meta_key>_wpcom_is_markdown</wp:meta_key>
+
+(let [loaded-posts (posts (load-xml-export blog-file))
+  [post & rest] loaded-posts]
+  ; (post->map post)
+  {
+    :author  (zip-xml/xml1-> post (keyword "dc:creator")  zip-xml/text)
+    :title   (zip-xml/xml1-> post :title zip-xml/text)
+    :content (zip-xml/xml1-> post (keyword "content:encoded") zip-xml/text)
+    :status  (zip-xml/xml1-> post (keyword "wp:status") zip-xml/text)
+    :date    (zip-xml/xml1-> post (keyword "wp:post_date") zip-xml/text)
+
+  })
+
+
