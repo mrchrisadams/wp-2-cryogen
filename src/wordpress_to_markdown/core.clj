@@ -21,6 +21,7 @@
 
 ; I want a vector of maps, where each map has all the attributes of the items.
 (defn posts
+  "Returns a lazy seq of maps that correspond to each post item in the xml"
   [parsed-xml]
   (zip-xml/xml-> parsed-xml
     :channel
@@ -36,18 +37,43 @@
 (defn post->map
   "Return a map for the corresponding post we pass in."
   [post]
-  {:title (zip-xml/xml1-> post :title zip-xml/text)
-   :content (zip-xml/xml1-> post (keyword "content:encoded") zip-xml/text)})
 
-(let [loaded-posts (posts (load-xml-export blog-file))
-  [post & rest] loaded-posts]
-  ; (post->map post)
   {
-    :author  (zip-xml/xml1-> post (keyword "dc:creator")  zip-xml/text)
-    :title   (zip-xml/xml1-> post :title zip-xml/text)
-    :content (zip-xml/xml1-> post (keyword "content:encoded") zip-xml/text)
-    :status  (zip-xml/xml1-> post (keyword "wp:status") zip-xml/text)
-    :date    (zip-xml/xml1-> post (keyword "wp:post_date") zip-xml/text)
+    :author    (zip-xml/xml1-> post (keyword "dc:creator")  zip-xml/text)
+    :title     (zip-xml/xml1-> post :title zip-xml/text)
+    :content   (zip-xml/xml1-> post (keyword "content:encoded") zip-xml/text)
+    :status    (zip-xml/xml1-> post (keyword "wp:status") zip-xml/text)
+    :date      (zip-xml/xml1-> post (keyword "wp:post_date") zip-xml/text)
+    :post-slug (zip-xml/xml1-> post (keyword "wp:post_name") zip-xml/text)})
 
-  })
+(defn render-into-md-template
+  [post-map]
+  (let [ctx (dissoc post-map :content)]
+  (sp/render-file "./markdown-template.md" {:content (post-map :content) :ctx ctx})))
 
+(defn parse-date
+  [date-string]
+  (first (clojure.string/split date-string #" ")))
+
+(defn parse-path
+  "Return the desired filename for the post, based on the name and slug"
+  [post-map]
+  (str (parse-date (post-map :date)) "-" (post-map :post-slug) ".md"))
+
+(defn file-path-for-post
+  [post-map]
+  (let [tmpl-string (render-into-md-template post-map)
+        post-path (parse-path post-map)]
+        post-path))
+
+(defn write-post-to-file
+  [post-map output-directory]
+  (spit (str output-directory (file-path-for-post post-map)) (render-into-md-template post-map)))
+
+(defn write-posts-to-markdown-files
+  "Accepts a path to an wordpress xml file, output directory,
+  and writes the published posts to markdown files in the given
+  target directory"
+  [wp-export-xml-file output-directory]
+  (doseq [post (posts (load-xml-export blog-file))]
+    (write-post-to-file (post->map post) output-directory)))
