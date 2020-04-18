@@ -39,12 +39,14 @@
   [post]
 
   {
-    :author    (zip-xml/xml1-> post (keyword "dc:creator")  zip-xml/text)
-    :title     (zip-xml/xml1-> post :title zip-xml/text)
-    :content   (zip-xml/xml1-> post (keyword "content:encoded") zip-xml/text)
-    :status    (zip-xml/xml1-> post (keyword "wp:status") zip-xml/text)
-    :date      (zip-xml/xml1-> post (keyword "wp:post_date") zip-xml/text)
-    :post-slug (zip-xml/xml1-> post (keyword "wp:post_name") zip-xml/text)})
+    :author      (zip-xml/xml1-> post (keyword "dc:creator")  zip-xml/text)
+    :title       (zip-xml/xml1-> post :title zip-xml/text)
+    :content     (zip-xml/xml1-> post (keyword "content:encoded") zip-xml/text)
+    :status      (zip-xml/xml1-> post (keyword "wp:status") zip-xml/text)
+    :date        (zip-xml/xml1-> post (keyword "wp:post_date") zip-xml/text)
+    :post-slug   (zip-xml/xml1-> post (keyword "wp:post_name") zip-xml/text)
+    :is-markdown (post-is-markdown? post)
+    })
 
 (defn render-into-md-template
   [post-map]
@@ -70,10 +72,37 @@
   [post-map output-directory]
   (spit (str output-directory (file-path-for-post post-map)) (render-into-md-template post-map)))
 
+(defn post-is-markdown?
+  "Return boolean for whether post is written as markdown or not"
+  [post]
+  (boolean (read-string
+    (zip-xml/xml1-> post
+      (keyword "wp:postmeta")
+      ; only return the value that marks if it's markdown
+      [(keyword "wp:meta_key") "_wpcom_is_markdown"]
+      ; then fetch the value out the xml
+      (keyword "wp:meta_value")
+      zip-xml/text
+
+    ))))
+
 (defn write-posts-to-markdown-files
   "Accepts a path to an wordpress xml file, output directory,
   and writes the published posts to markdown files in the given
   target directory"
   [wp-export-xml-file output-directory]
-  (doseq [post (posts (load-xml-export blog-file))]
-    (write-post-to-file (post->map post) output-directory)))
+  (doseq [post (posts (load-xml-export blog-file))
+          post-map (post->map post)]
+    (write-post-to-file post output-directory)))
+
+(let [[post & rest] (posts (load-xml-export blog-file))]
+  (post-is-markdown? post)
+)
+
+(defn fetch-first-post
+  "Return the first post from the xml export."
+  [post]
+  (let [[post & rest] (posts (load-xml-export blog-file))]
+    (clojure.zip/node post)))
+
+(clojure.pprint/pprint (:content (fetch-first-post blog-file)))
