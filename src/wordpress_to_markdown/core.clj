@@ -7,8 +7,6 @@
 
 (def blog-file "./wp-export.xml")
 
-(io/resource blog-file)
-
 (defn load-xml-export
   "Load the xml file and return an map we can query using
   clojure.data.zip.xml's xml query tool."
@@ -19,13 +17,14 @@
       xml/parse
       zip/xml-zip))
 
-; I want a vector of maps, where each map has all the attributes of the items.
-(defn posts
+(defn posts-from-xml
   "Returns a lazy seq of maps that correspond to each post item in the xml"
   [parsed-xml]
   (zip-xml/xml-> parsed-xml
                  :channel
-                 :item [(keyword "wp:post_type") "post"]))
+                 :item [(keyword "wp:post_type") "post"]
+                 :item [(keyword "wp:status") "publish"]
+                 clojure.zip/node))
 
 (defn post-is-markdown?
   "Return boolean for whether post is written as markdown or not"
@@ -38,23 +37,6 @@
                             ; then fetch the value out the xml
                             (keyword "wp:meta_value")
                             zip-xml/text))))
-
-(defn post->map
-  "Return a map for the corresponding post we pass in."
-  [post]
-
-  {:author      (zip-xml/xml1-> post (keyword "dc:creator")  zip-xml/text)
-   :title       (zip-xml/xml1-> post :title zip-xml/text)
-   :content     (zip-xml/xml1-> post (keyword "content:encoded") zip-xml/text)
-   :status      (zip-xml/xml1-> post (keyword "wp:status") zip-xml/text)
-   :date        (zip-xml/xml1-> post (keyword "wp:post_date") zip-xml/text)
-   :post-slug   (zip-xml/xml1-> post (keyword "wp:post_name") zip-xml/text)
-   :is-markdown (post-is-markdown? post)})
-
-(defn render-into-md-template
-  [post-map]
-  (let [ctx (dissoc post-map :content)]
-    (sp/render-file "./markdown-template.md" {:content (post-map :content) :ctx ctx})))
 
 (defn parse-date
   [date-string]
@@ -79,34 +61,60 @@
   "Accepts a path to an wordpress xml file, output directory,
   and writes the published posts to markdown files in the given
   target directory"
-  [wp-export-xml-file output-directory]
-  (doseq [post (posts (load-xml-export blog-file))
-          post-map (post->map post)]
+  [posts output-directory]
+  (doseq [post posts]
     (write-post-to-file post output-directory)))
-
-(let [[post & rest] (posts (load-xml-export blog-file))]
-  (post-is-markdown? post))
 
 (defn fetch-first-post
   "Return the first post from the xml export."
+  [posts]
+  (first posts))
+
+(def posto
+  (-> blog-file
+    load-xml-export
+    posts-from-xml
+    fetch-first-post
+))
+
+(defn tag-is [name]
+  #(= (:tag %) name))
+
+(defn content-for-tag [name post]
+    "Return the value is we end up with a single node to pull
+    content from, otherwise return the collection."
+    (let [content
+      (filter (tag-is name) (:content post))]
+    (if (= (count content) 1)
+      (first (:content (first content)))
+      content)))
+
+(defn post->map
+  "Return a simplified map for the corresponding post we pass in."
   [post]
-  (let [[post & rest] (posts (load-xml-export blog-file))]
-    (clojure.zip/node post)))
 
-(fetch-first-post)
+  {:author        (content-for-tag :dc:creator)
+   :title         (content-for-tag :title post)
+   :content       (content-for-tag :content:encoded post)
+   :status        (content-for-tag :wp:status post)
+   :date          (content-for-tag :wp:post_date post)
+   :publish-date  (content-for-tag :pubDate post)
+   :post-slug     (content-for-tag :wp:post_name post)
+  ;  :is-markdown   (post-is-markdown? post)
+   })
 
-; (clojure.pprint/pprint (:content (fetch-first-post blog-file)))
-
-; (def posts-as-nodes
-;   (-> blog-file
-;       load-xml-export
-;       posts
-;       count
-;       ))
-
-;     posts-as-nodes
+(defn render-into-md-template
+  [post-map]
+  (let [ctx (dissoc post-map :content)]
+    (sp/render-file "./markdown-template.md" {:content (post-map :content) :ctx ctx})))
 
 
-(let [loaded-posts (posts (load-xml-export blog-file))
-      [post & rest] loaded-posts]
-  (post->map post))
+; (clojure.pprint/pprint posto)
+; (content-for-tag :pubDate posto)
+; (content-for-tag :dc:creator posto)
+
+; (content-for-tag :wp:post_name posto)
+
+; (clojure.pprint/pprint (content-for-tag :wp:postmeta posto))
+
+(write-posts-to-markdown-files blog-file "posts")
