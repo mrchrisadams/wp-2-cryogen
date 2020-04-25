@@ -35,17 +35,17 @@
   [post-map]
   (str (parse-date (post-map :date)) "-" (post-map :post-slug) ".md"))
 
+(defn render-into-md-template
+  [post-map]
+  (let [ctx (dissoc post-map :content :status :post-slug :is-markdown)]
+    (sp/render-file "./markdown-template.md" {:content (post-map :content) :ctx ctx})))
+
+
 (defn file-path-for-post
   [post-map]
   (let [tmpl-string (render-into-md-template post-map)
         post-path (parse-path post-map)]
     post-path))
-
-(defn render-into-md-template
-  [post-map]
-  (let [ctx (dissoc post-map :content)]
-    (sp/render-file "./markdown-template.md" {:content (post-map :content) :ctx ctx})))
-
 
 (defn write-post-to-file
   "Writes the provided post to the given output directory"
@@ -60,19 +60,13 @@
   target directory"
   [posts output-directory]
   (doseq [post posts]
+
     (write-post-to-file post output-directory)))
 
 (defn fetch-first-post
   "Return the first post from the xml export."
   [posts]
   (first posts))
-
-(def posto
-  (-> blog-file
-    load-xml-export
-    posts-from-xml
-    fetch-first-post
-))
 
 (def posts
   (-> blog-file
@@ -92,20 +86,6 @@
       (first (:content (first content)))
       content)))
 
-(defn post->map
-  "Return a simplified map for the corresponding post we pass in."
-  [post]
-
-  {:author        (content-for-tag :dc:creator post)
-   :title         (content-for-tag :title post)
-   :content       (content-for-tag :content:encoded post)
-   :status        (content-for-tag :wp:status post)
-   :date          (content-for-tag :wp:post_date post)
-   :publish-date  (content-for-tag :pubDate post)
-   :post-slug     (content-for-tag :wp:post_name post)
-   :is-markdown   (post-is-markdown? post)
-   })
-
 
 (defn tag-to-map
   [tag-vec]
@@ -121,7 +101,6 @@
       tag-to-map
       (map :content tags))))
 
-
 (defn post-is-markdown?
   "Return boolean for whether post is written as markdown or not"
   [post]
@@ -131,16 +110,18 @@
       (boolean (get (first postmeta) k))
     ))
 
+(defn post->map
+  "Return a simplified map for the corresponding post we pass in."
+  [post]
 
-; (post-is-markdown? posto)
-; (clojure.pprint/pprint posto)
-; (clojure.pprint/pprint (post->map posto))
+  {:author        (content-for-tag :dc:creator post)
+   :title         (content-for-tag :title post)
+   :content       (content-for-tag :content:encoded post)
+   :status        (content-for-tag :wp:status post)
+   :date          (content-for-tag :wp:post_date post)
+   :publish-date  (content-for-tag :pubDate post)
+   :post-slug     (content-for-tag :wp:post_name post)
+   :is-markdown   (post-is-markdown? post)
+   })
 
-; (clojure.pprint/pprint (postmeta-tags posto))
-(write-post-to-file (post->map posto) "posts/")
-)
 
-
-; ; (clojure.pprint/pprint (content-for-tag :wp:postmeta posto))
-
-(write-posts-to-markdown-files posts "posts/")
