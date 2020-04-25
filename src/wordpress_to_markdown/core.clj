@@ -18,7 +18,7 @@
       zip/xml-zip))
 
 (defn posts-from-xml
-  "Returns a lazy seq of maps that correspond to each post item in the xml"
+  "Returns a lazy seq of maps that correspond to each post item in the xml, that is published"
   [parsed-xml]
   (zip-xml/xml-> parsed-xml
                  :channel
@@ -38,7 +38,7 @@
 (defn render-into-md-template
   [post-map]
   (let [ctx (dissoc post-map :content :status :post-slug :is-markdown)]
-    (sp/render-file "./markdown-template.md" {:content (post-map :content) :ctx ctx})))
+    (sp/render-file "./markdown_template.md" {:content (post-map :content) :ctx ctx})))
 
 
 (defn file-path-for-post
@@ -68,11 +68,13 @@
   [posts]
   (first posts))
 
-(def posts
-  (-> blog-file
+(defn posts
+  "Accept a file name, and return a sequence of maps representing
+  the parsed blog posts"
+  [file-path]
+  (-> file-path
     load-xml-export
-    posts-from-xml
-))
+    posts-from-xml))
 
 (defn tag-is [name]
   #(= (:tag %) name))

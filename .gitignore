@@ -16,3 +16,5 @@ pom.xml.asc
 
 # don't track mac cruft
 .DS_Store
+
+posts/
