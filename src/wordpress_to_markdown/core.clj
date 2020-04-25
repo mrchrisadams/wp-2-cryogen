@@ -26,18 +26,6 @@
                  :item [(keyword "wp:status") "publish"]
                  clojure.zip/node))
 
-(defn post-is-markdown?
-  "Return boolean for whether post is written as markdown or not"
-  [post]
-  (boolean (read-string
-            (zip-xml/xml1-> post
-                            (keyword "wp:postmeta")
-                            ; only return the value that marks if it's markdown
-                            [(keyword "wp:meta_key") "_wpcom_is_markdown"]
-                            ; then fetch the value out the xml
-                            (keyword "wp:meta_value")
-                            zip-xml/text))))
-
 (defn parse-date
   [date-string]
   (first (clojure.string/split date-string #" ")))
@@ -53,9 +41,18 @@
         post-path (parse-path post-map)]
     post-path))
 
+(defn render-into-md-template
+  [post-map]
+  (let [ctx (dissoc post-map :content)]
+    (sp/render-file "./markdown-template.md" {:content (post-map :content) :ctx ctx})))
+
+
 (defn write-post-to-file
+  "Writes the provided post to the given output directory"
   [post-map output-directory]
-  (spit (str output-directory (file-path-for-post post-map)) (render-into-md-template post-map)))
+  (spit
+    (str output-directory (file-path-for-post post-map))
+    (render-into-md-template post-map)))
 
 (defn write-posts-to-markdown-files
   "Accepts a path to an wordpress xml file, output directory,
@@ -77,11 +74,17 @@
     fetch-first-post
 ))
 
+(def posts
+  (-> blog-file
+    load-xml-export
+    posts-from-xml
+))
+
 (defn tag-is [name]
   #(= (:tag %) name))
 
 (defn content-for-tag [name post]
-    "Return the value is we end up with a single node to pull
+    "Return the value if we end up with a single node to pull
     content from, otherwise return the collection."
     (let [content
       (filter (tag-is name) (:content post))]
@@ -93,28 +96,51 @@
   "Return a simplified map for the corresponding post we pass in."
   [post]
 
-  {:author        (content-for-tag :dc:creator)
+  {:author        (content-for-tag :dc:creator post)
    :title         (content-for-tag :title post)
    :content       (content-for-tag :content:encoded post)
    :status        (content-for-tag :wp:status post)
    :date          (content-for-tag :wp:post_date post)
    :publish-date  (content-for-tag :pubDate post)
    :post-slug     (content-for-tag :wp:post_name post)
-  ;  :is-markdown   (post-is-markdown? post)
+   :is-markdown   (post-is-markdown? post)
    })
 
-(defn render-into-md-template
-  [post-map]
-  (let [ctx (dissoc post-map :content)]
-    (sp/render-file "./markdown-template.md" {:content (post-map :content) :ctx ctx})))
+
+(defn tag-to-map
+  [tag-vec]
+  {
+    (first (:content (first tag-vec)))
+    (first (:content (second tag-vec)))})
+
+(defn postmeta-tags
+  "return meta tags for a given post"
+  [post]
+  (let [tags (filter #(= (:tag %) :wp:postmeta ) (:content post))]
+    (map
+      tag-to-map
+      (map :content tags))))
 
 
+(defn post-is-markdown?
+  "Return boolean for whether post is written as markdown or not"
+  [post]
+  (let [postmeta (postmeta-tags post)
+        k "_wpcom_is_markdown"]
+      postmeta
+      (boolean (get (first postmeta) k))
+    ))
+
+
+; (post-is-markdown? posto)
 ; (clojure.pprint/pprint posto)
-; (content-for-tag :pubDate posto)
-; (content-for-tag :dc:creator posto)
+; (clojure.pprint/pprint (post->map posto))
 
-; (content-for-tag :wp:post_name posto)
+; (clojure.pprint/pprint (postmeta-tags posto))
+(write-post-to-file (post->map posto) "posts/")
+)
 
-; (clojure.pprint/pprint (content-for-tag :wp:postmeta posto))
 
-(write-posts-to-markdown-files blog-file "posts")
+; ; (clojure.pprint/pprint (content-for-tag :wp:postmeta posto))
+
+(write-posts-to-markdown-files posts "posts/")
