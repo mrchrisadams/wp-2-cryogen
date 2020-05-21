@@ -47,21 +47,6 @@
         post-path (parse-path post-map)]
     post-path))
 
-(defn write-post-to-file
-  "Writes the provided post to the given output directory"
-  [post-map output-directory]
-  (spit
-    (str output-directory (file-path-for-post post-map))
-    (render-into-md-template post-map)))
-
-(defn write-posts-to-markdown-files
-  "Accepts a path to an wordpress xml file, output directory,
-  and writes the published posts to markdown files in the given
-  target directory"
-  [posts output-directory]
-  (doseq [post posts]
-
-    (write-post-to-file post output-directory)))
 
 (defn fetch-first-post
   "Return the first post from the xml export."
@@ -112,6 +97,15 @@
       (boolean (get (first postmeta) k))
     ))
 
+(defn post-not-ready?
+  "Return a boolean, if a post is likely to fail the compilation
+  step with cryogen. Crygoen will not import a post if it has no title."
+  [post]
+  (or
+  ; (post-has-empty-title post)
+  )
+  )
+
 (defn post->map
   "Return a simplified map for the corresponding post we pass in."
   [post]
@@ -124,6 +118,23 @@
    :publish-date  (content-for-tag :pubDate post)
    :post-slug     (content-for-tag :wp:post_name post)
    :is-markdown   (post-is-markdown? post)
+   :draft?        (post-not-ready? post)
    })
 
 
+(defn write-post-to-file
+  "Writes the provided post to the given output directory"
+  [post-map output-directory]
+  (spit
+    (str output-directory (file-path-for-post post-map))
+    (render-into-md-template post-map)))
+
+(defn write-posts-to-markdown-files
+  "Accepts a path to an wordpress xml file, output directory,
+  and writes the published posts to markdown files in the given
+  target directory"
+  [posts output-directory]
+  (doseq [post posts]
+
+    (write-post-to-file (post->map post) output-directory)
+    ))
